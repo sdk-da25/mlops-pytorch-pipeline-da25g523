@@ -1,9 +1,11 @@
 """Training entrypoint for the CIFAR-10 classifier.
 
 Reads all model/hyperparameter/path settings from
-``configs/training_config.yaml`` and logs progress as one JSON object per
-line to stdout — no other output is printed, so stdout stays JSON-lines
-parseable end to end.
+``configs/training_config.yaml``. Progress is logged two ways: as one JSON
+object per line to stdout (no other output is printed, so stdout stays
+JSON-lines parseable end to end), and as TensorBoard scalars under
+``<checkpoint_dir>/tensorboard`` for interactive inspection (``tensorboard
+--logdir <checkpoint_dir>/tensorboard``).
 """
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ import torch
 import yaml
 from torch import nn
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from dataset import get_dataloaders
 from model import get_model
@@ -86,6 +89,8 @@ def main() -> None:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / output_config["model_name"]
 
+    writer = SummaryWriter(log_dir=str(checkpoint_dir / "tensorboard"))
+
     patience = training_config["early_stopping_patience"]
     best_val_loss = float("inf")
     epochs_without_improvement = 0
@@ -93,6 +98,11 @@ def main() -> None:
     for epoch in range(1, training_config["epochs"] + 1):
         train_loss, train_accuracy = run_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_accuracy = run_epoch(model, val_loader, criterion, None, device)
+
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Loss/val", val_loss, epoch)
+        writer.add_scalar("Accuracy/train", train_accuracy, epoch)
+        writer.add_scalar("Accuracy/val", val_accuracy, epoch)
 
         print(
             json.dumps(
@@ -146,6 +156,7 @@ def main() -> None:
                 )
                 break
 
+    writer.close()
     print(json.dumps({"event": "training_complete", "best_val_loss": round(best_val_loss, 4)}), flush=True)
 
 
