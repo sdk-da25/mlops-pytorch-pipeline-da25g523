@@ -7,6 +7,10 @@ metadata:
     app: model-serving
 spec:
   replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: model-serving
@@ -17,53 +21,43 @@ spec:
     spec:
       containers:
         - name: model-serving
-          image: cifar10-serve:latest
+          image: mlops-serve:v1
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:
-            - name: MODEL_CONFIG_PATH
-              value: /app/configs/training_config.yaml
-            - name: MODEL_CHECKPOINT_PATH
-              value: /checkpoints/best_model.pt
+            - name: CHECKPOINT_PATH
+              value: /app/checkpoints/classifier_v1.pt
             - name: MODEL_REGISTRY_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: model-serving-secrets
+                  name: model-registry
                   key: MODEL_REGISTRY_TOKEN
           volumeMounts:
-            - name: training-config
-              mountPath: /app/configs
             - name: checkpoints
-              mountPath: /checkpoints
+              mountPath: /app/checkpoints
               readOnly: true
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
             initialDelaySeconds: 15
-            periodSeconds: 20
           resources:
             requests:
-              cpu: "250m"
-              memory: "512Mi"
+              cpu: "500m"
+              memory: "1Gi"
             limits:
               cpu: "1"
-              memory: "1Gi"
+              memory: "2Gi"
       volumes:
-        - name: training-config
-          configMap:
-            name: training-config
-            items:
-              - key: training_config.yaml
-                path: training_config.yaml
-        # In this minimal setup checkpoints are provided via emptyDir; a real
-        # deployment would mount a shared volume or object store populated
-        # by the training Job.
         - name: checkpoints
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: checkpoints-pvc
+            readOnly: true
