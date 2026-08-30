@@ -1,7 +1,7 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: model-serving
+  name: model-serving-hpa
   namespace: ml-training
 spec:
   scaleTargetRef:
@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: model-serving
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: 5
   metrics:
     - type: Resource
       resource:

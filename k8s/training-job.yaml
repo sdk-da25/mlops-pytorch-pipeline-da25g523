@@ -1,7 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: checkpoints-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cifar10-training
+  name: pytorch-training
   namespace: ml-training
 spec:
   backoffLimit: 2
@@ -10,25 +34,23 @@ spec:
       restartPolicy: Never
       containers:
         - name: train
-          image: cifar10-train:latest
-          args:
-            - "--config"
-            - "/app/configs/training_config.yaml"
-            - "--checkpoint-dir"
-            - "/checkpoints"
-            - "--data-dir"
-            - "/data"
+          image: mlops-train:v1
+          # Image is loaded directly into the local cluster, not pulled from
+          # a registry.
+          imagePullPolicy: IfNotPresent
+          # No CLI args: src/train.py reads /app/configs/training_config.yaml
+          # (mounted below) and takes data_dir/checkpoint_dir from that file.
           volumeMounts:
             - name: training-config
               mountPath: /app/configs
-            - name: checkpoints
-              mountPath: /checkpoints
             - name: data
-              mountPath: /data
+              mountPath: /app/data
+            - name: checkpoints
+              mountPath: /app/checkpoints
           resources:
             requests:
-              cpu: "1"
-              memory: "2Gi"
+              cpu: "2"
+              memory: "4Gi"
             limits:
               cpu: "2"
               memory: "4Gi"
@@ -39,7 +61,63 @@ spec:
             items:
               - key: training_config.yaml
                 path: training_config.yaml
-        - name: checkpoints
-          emptyDir: {}
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: data-pvc
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: checkpoints-pvc
+
+# --- Bonus: GPU variant -----------------------------------------------------
+# Uncomment (and remove the CPU Job above) to schedule onto a GPU node.
+# Requires an NVIDIA device plugin installed on the cluster.
+#
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: pytorch-training
+#   namespace: ml-training
+# spec:
+#   backoffLimit: 2
+#   template:
+#     spec:
+#       restartPolicy: Never
+#       nodeSelector:
+#         accelerator: nvidia
+#       tolerations:
+#         - key: accelerator
+#           operator: Equal
+#           value: nvidia
+#           effect: NoSchedule
+#       containers:
+#         - name: train
+#           image: mlops-train:v1
+#           imagePullPolicy: IfNotPresent
+#           volumeMounts:
+#             - name: training-config
+#               mountPath: /app/configs
+#             - name: data
+#               mountPath: /app/data
+#             - name: checkpoints
+#               mountPath: /app/checkpoints
+#           resources:
+#             requests:
+#               cpu: "2"
+#               memory: "4Gi"
+#             limits:
+#               cpu: "2"
+#               memory: "4Gi"
+#               nvidia.com/gpu: 1
+#       volumes:
+#         - name: training-config
+#           configMap:
+#             name: training-config
+#             items:
+#               - key: training_config.yaml
+#                 path: training_config.yaml
+#         - name: data
+#           persistentVolumeClaim:
+#             claimName: data-pvc
+#         - name: checkpoints
+#           persistentVolumeClaim:
+#             claimName: checkpoints-pvc
