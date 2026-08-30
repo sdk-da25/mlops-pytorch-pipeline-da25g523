@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-serving
+  namespace: ml-training
+  labels:
+    app: model-serving
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: model-serving
+  template:
+    metadata:
+      labels:
+        app: model-serving
+    spec:
+      containers:
+        - name: model-serving
+          image: cifar10-serve:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MODEL_CONFIG_PATH
+              value: /app/configs/training_config.yaml
+            - name: MODEL_CHECKPOINT_PATH
+              value: /checkpoints/best_model.pt
+            - name: MODEL_REGISTRY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: model-serving-secrets
+                  key: MODEL_REGISTRY_TOKEN
+          volumeMounts:
+            - name: training-config
+              mountPath: /app/configs
+            - name: checkpoints
+              mountPath: /checkpoints
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: training-config
+          configMap:
+            name: training-config
+            items:
+              - key: training_config.yaml
+                path: training_config.yaml
+        # In this minimal setup checkpoints are provided via emptyDir; a real
+        # deployment would mount a shared volume or object store populated
+        # by the training Job.
+        - name: checkpoints
+          emptyDir: {}
