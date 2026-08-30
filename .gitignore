@@ -1,0 +1,23 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Data & model artifacts — must never be committed
+data/
+checkpoints/
+*.pt
+*.pth
+
+# Secrets / local overrides
+.env
+secrets/
+*.local.yaml
+
+# OS
+.DS_Store
