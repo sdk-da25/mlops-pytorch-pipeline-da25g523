@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import os
 from pathlib import Path
+from typing import Annotated
 
 import torch
 import yaml
@@ -51,9 +52,10 @@ def load_model() -> None:
 
         _model = model
         MODEL_READY = True
-    except Exception:
-        # Leave MODEL_READY False (e.g. checkpoint not yet mounted) instead
-        # of crashing the process — /health reports this via HTTP 503.
+    except (OSError, KeyError, RuntimeError, yaml.YAMLError):
+        # Leave MODEL_READY False (e.g. checkpoint not yet mounted, or a
+        # malformed config/checkpoint) instead of crashing the process —
+        # /health reports this via HTTP 503.
         MODEL_READY = False
 
 
@@ -65,7 +67,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/predict")
-async def predict(image: UploadFile = File(...)) -> dict:
+async def predict(image: Annotated[UploadFile, File(...)]) -> dict:
     if not MODEL_READY:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
