@@ -1,11 +1,19 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
+
+FROM python:3.11-slim AS base
 
 WORKDIR /app
 
 COPY requirements/train.txt requirements/train.txt
 RUN pip install --no-cache-dir -r requirements/train.txt
 
+FROM base AS training
+
 COPY src/ src/
 COPY configs/ configs/
 
+ENV PYTHONUNBUFFERED=1
+
+# src/train.py falls back to this baked-in copy when nothing is mounted at
+# /app/configs; a ConfigMap volume mounted there overrides it at runtime.
 ENTRYPOINT ["python", "src/train.py"]
