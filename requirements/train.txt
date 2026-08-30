@@ -1,0 +1,8 @@
+# Training-only dependencies. CPU wheels only, to keep the training image
+# small — install with:
+#   pip install -r requirements/train.txt --index-url https://download.pytorch.org/whl/cpu
+torch==2.3.1
+torchvision==0.18.1
+PyYAML==6.0.1
+numpy==1.26.4
+tensorboard==2.16.2

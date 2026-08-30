@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cifar10-training
+  namespace: ml-training
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: train
+          image: cifar10-train:latest
+          args:
+            - "--config"
+            - "/app/configs/training_config.yaml"
+            - "--checkpoint-dir"
+            - "/checkpoints"
+            - "--data-dir"
+            - "/data"
+          volumeMounts:
+            - name: training-config
+              mountPath: /app/configs
+            - name: checkpoints
+              mountPath: /checkpoints
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+      volumes:
+        - name: training-config
+          configMap:
+            name: training-config
+            items:
+              - key: training_config.yaml
+                path: training_config.yaml
+        - name: checkpoints
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
