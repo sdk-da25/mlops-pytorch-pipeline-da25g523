@@ -1,3 +1,27 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: checkpoints-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -11,20 +35,15 @@ spec:
       containers:
         - name: train
           image: cifar10-train:latest
-          args:
-            - "--config"
-            - "/app/configs/training_config.yaml"
-            - "--checkpoint-dir"
-            - "/checkpoints"
-            - "--data-dir"
-            - "/data"
+          # No CLI args: src/train.py reads /app/configs/training_config.yaml
+          # (mounted below) and takes data_dir/checkpoint_dir from that file.
           volumeMounts:
             - name: training-config
               mountPath: /app/configs
-            - name: checkpoints
-              mountPath: /checkpoints
             - name: data
-              mountPath: /data
+              mountPath: /app/data
+            - name: checkpoints
+              mountPath: /app/checkpoints
           resources:
             requests:
               cpu: "1"
@@ -39,7 +58,9 @@ spec:
             items:
               - key: training_config.yaml
                 path: training_config.yaml
-        - name: checkpoints
-          emptyDir: {}
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: data-pvc
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: checkpoints-pvc
